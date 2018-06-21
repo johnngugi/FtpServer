@@ -9,6 +9,7 @@ import java.util.Scanner;
  * Control channel class
  */
 public class ControlChannel implements Runnable {
+    private final RequestHandler requestHandler;
     private SocketChannel channel;
     private final Scanner reader;
     private Thread thread;
@@ -17,6 +18,7 @@ public class ControlChannel implements Runnable {
     public ControlChannel(SocketChannel socketChannel) throws IOException {
         this.channel = socketChannel;
         this.reader = new Scanner(channel);
+        this.requestHandler = new RequestHandler(this.channel);
 
         onConnect();
     }
@@ -58,7 +60,7 @@ public class ControlChannel implements Runnable {
                 } else {
                     command = line;
                 }
-                processCommand(command, parameter);
+                requestHandler.processCommand(command, parameter);
             }
         } finally {
             stop();
