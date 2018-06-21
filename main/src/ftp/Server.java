@@ -15,11 +15,13 @@ public class Server {
      * Constructor for Server class
      * @throws IOException if error occurs while opening or binding a socket
      */
-    public Server() throws IOException {
+    public Server(int port, String directory) throws IOException {
         running = false;
+        this.port = port;
+        this.directory = directory;
         this.socket = ServerSocketChannel.open();
         this.socket.configureBlocking(true);
-        this.socket.socket().bind(new InetSocketAddress(21)); // todo don't hardcode port number
+        this.socket.socket().bind(new InetSocketAddress(port)); // todo don't hardcode port number
     }
 
     /**
@@ -31,7 +33,7 @@ public class Server {
         try {
             while (running) {
                 SocketChannel socketChannel = socket.accept();
-                new ControlChannel(socketChannel).start();
+                new ControlChannel(socketChannel, directory).start();
             }
         } catch (IOException e) {
             e.printStackTrace();

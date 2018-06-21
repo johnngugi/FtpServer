@@ -3,7 +3,7 @@ package ftp;
 import java.nio.channels.SocketChannel;
 
 public class RequestHandler {
-    public RequestHandler(SocketChannel socket) {
+    public RequestHandler(SocketChannel socket, String directory) {
 
     }
 
