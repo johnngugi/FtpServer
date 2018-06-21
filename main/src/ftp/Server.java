@@ -27,6 +27,7 @@ public class Server {
      */
     public void start() {
         if (running) return;
+        running = true;
         try {
             while (running) {
                 SocketChannel socketChannel = socket.accept();
