@@ -1,7 +1,6 @@
 package ftp;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.Scanner;
 
@@ -39,7 +38,7 @@ public class ControlChannel implements Runnable {
      * @throws IOException thrown by println method
      */
     private void onConnect() throws IOException {
-        println("220 welcome to our ftp server");
+        FtpUtil.println(channel, "220 welcome to our ftp server");
     }
 
     /**
@@ -54,22 +53,7 @@ public class ControlChannel implements Runnable {
     }
 
     /**
-     * Writes to the socket channel
-     *
-     * @param msg message to be written
-     * @throws IOException thrown when writing to the socket channel
-     */
-    private void println(String msg) throws IOException {
-        System.out.println("<= " + msg);
-        ByteBuffer buf = ByteBuffer.wrap((msg + "\r\n").getBytes("UTF-8"));
-        while (buf.hasRemaining()) {
-            if (channel == null) break;
-            channel.write(buf);
-        }
-    }
-
-    /**
-     * Called when the thread is started. Continously listens for messages from server and passes
+     * Called when the thread is started. Continuously listens for messages from server and passes
      * the server command and parameter to the request handler class
      */
     @Override
@@ -79,18 +63,15 @@ public class ControlChannel implements Runnable {
                 String line = reader.nextLine();
                 if (line == null) break;
 
-                String command = null;
-                String parameter = null;
+                String[] requestLine = FtpUtil.split(line);
+                String command = requestLine[0];
+                String parameter = requestLine[1];
 
-                int i = line.indexOf(' ');
-                if (i != -1) {
-                    command = line.substring(0, i);
-                    parameter = line.substring(i).trim();
-                } else {
-                    command = line;
-                }
                 requestHandler.processCommand(command, parameter);
             }
+        } catch (IOException e) {
+            System.out.println("Channel error occurred");
+            e.printStackTrace();
         } finally {
             stop();
         }
