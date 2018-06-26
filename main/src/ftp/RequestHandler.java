@@ -9,15 +9,41 @@ import java.util.function.Consumer;
 public class RequestHandler {
 
     private final SocketChannel socket;
+    private final String directory;
     private String userName;
     private Map<String, Consumer<String>> processFunctions = new HashMap<>();
+    private boolean isBinary;
 
     public RequestHandler(SocketChannel socket, String directory) {
         this.socket = socket;
+        this.directory = directory;
         processFunctions.put("USER", this::processUser);
         processFunctions.put("PASS", this::processPassword);
         processFunctions.put("AUTH", this::processSecurityExtension);
         processFunctions.put("PWD", this::processWorkingDirecory);
+        processFunctions.put("TYPE", this::processType);
+    }
+
+    private void processType(String parameter) {
+        parameter = parameter.toUpperCase();
+
+        try {
+            switch (parameter) {
+                case "I":
+                    isBinary = true;
+                    break;
+                case "A":
+                    isBinary = false;
+                    break;
+                default:
+                    FtpUtil.println(socket, "504 Command not implemented for that parameter.");
+                    return;
+            }
+            FtpUtil.println(socket, "200 Type set to " + parameter);
+        } catch (IOException e) {
+            System.out.println("Error processing type");
+            e.printStackTrace();
+        }
     }
 
     public void processCommand(String command, String parameter) throws IOException {
@@ -31,7 +57,12 @@ public class RequestHandler {
     }
 
     private void processWorkingDirecory(String parameter) {
-
+        try {
+            FtpUtil.println(socket, "257 " + this.directory);
+        } catch (IOException e) {
+            System.out.println("Error occured with processing working directory");
+            e.printStackTrace();
+        }
     }
 
     private void processSecurityExtension(String parameter) {
