@@ -1,9 +1,10 @@
 package ftp;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.channels.SocketChannel;
-import java.util.HashMap;
-import java.util.Map;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.function.Consumer;
 
 public class RequestHandler implements DataConnectionListener {
@@ -15,6 +16,14 @@ public class RequestHandler implements DataConnectionListener {
     private boolean isBinary;
     private DataConnection data;
     private long restart;
+    private File userCurrent = null;
+    private File userRoot = null;
+
+    private boolean isUTF8Enable = false;
+
+    private SimpleDateFormat fmtDate = new SimpleDateFormat("MMM dd HH:mm", Locale.ENGLISH);
+    private SimpleDateFormat fmtPast = new SimpleDateFormat("MMM dd  yyyy", Locale.ENGLISH);
+    private SimpleDateFormat fmtStamp = new SimpleDateFormat("yyyyMMddHHmmss");
 
     public RequestHandler(SocketChannel socket, String directory) {
         this.socket = socket;
@@ -22,9 +31,73 @@ public class RequestHandler implements DataConnectionListener {
         processFunctions.put("USER", this::processUser);
         processFunctions.put("PASS", this::processPassword);
         processFunctions.put("AUTH", this::processSecurityExtension);
-        processFunctions.put("PWD", this::processWorkingDirecory);
+        processFunctions.put("PWD", this::processPrintWorkingDirecory);
         processFunctions.put("TYPE", this::processType);
         processFunctions.put("PASV", this::processPassive);
+        processFunctions.put("LIST", this::processList);
+    }
+
+    private void processList(String parameter) {
+        isUTF8Enable = true; // todo change this
+        File[] files = userCurrent.listFiles();
+        System.out.println(Arrays.toString(files));
+        StringBuilder sb = new StringBuilder();
+
+        Calendar cal = Calendar.getInstance();
+        int currentYear = cal.get(Calendar.YEAR);
+
+        List<File> list = null;
+        if (files != null) {
+            list = new ArrayList<>(files.length);
+            Collections.addAll(list, files);
+
+            list.sort(Comparator.comparing(File::getName));
+
+            for (File f : list) {
+                if (f.isDirectory()) {
+                    sb.append("drwxr-xr-x");
+                } else if (f.isFile()) {
+                    sb.append("-rw-r--r--");
+                }
+
+                sb.append(' ');
+                sb.append(String.format("%3d", 1));
+                sb.append(' ');
+                sb.append(String.format("%-8s", this.userName));
+                sb.append(' ');
+                sb.append(String.format("%-8s", this.userName));
+                sb.append(' ');
+                long len = f.length();
+                System.out.println("Length: " + len);
+                if (f.isDirectory())
+                    len = 4096;
+                sb.append(String.format("%8d", len));
+                sb.append(' ');
+
+                cal.setTimeInMillis(f.lastModified());
+                if (cal.get(Calendar.YEAR) == currentYear) {
+                    sb.append(fmtDate.format(cal.getTime()));
+                } else {
+                    sb.append(fmtPast.format(cal.getTime()));
+                }
+                sb.append(' ');
+                sb.append(f.getName());
+                sb.append("\r\n");
+            }
+            System.out.println("LIST result " + sb.toString());
+
+            try {
+                if (data != null) {
+                    FtpUtil.println(socket, "150 Opening ASCII mode data connection for file list");
+                    data.send(sb.toString(), isUTF8Enable);
+                } else {
+                    FtpUtil.println(socket, "552 Requested file list action aborted.");
+                }
+            } catch (IOException e) {
+                System.out.println("Error processing LIST command");
+                e.printStackTrace();
+            }
+        }
     }
 
     public void processCommand(String command, String parameter) throws IOException {
@@ -78,8 +151,18 @@ public class RequestHandler implements DataConnectionListener {
         }
     }
 
-    private void processWorkingDirecory(String parameter) {
+    private void processPrintWorkingDirecory(String parameter) {
         try {
+            String root = userRoot.getAbsolutePath();
+            String curr = userCurrent.getAbsolutePath();
+            System.out.println("Root: " + root);
+            System.out.println("Current: " + curr);
+
+            curr = curr.substring(root.length());
+
+            if (curr.length() == 0)
+                curr = "/";
+
             FtpUtil.println(socket, "257 " + this.directory);
         } catch (IOException e) {
             System.out.println("Error occured with processing working directory");
@@ -107,6 +190,16 @@ public class RequestHandler implements DataConnectionListener {
             if (this.userName == null) {
                 FtpUtil.println(socket, "503 Bad sequence of commands. Send USER first.");
             }
+
+            userRoot = new File(this.directory);
+
+            if (!userRoot.exists()) {
+                System.out.println("Directory doesn't exist");
+                System.exit(1);
+//                userRoot.mkdirs();
+            }
+
+            userCurrent = userRoot;
             FtpUtil.println(socket, "230 User " + this.userName + " logged in.");
         } catch (IOException e) {
             System.out.println("Error processing password");

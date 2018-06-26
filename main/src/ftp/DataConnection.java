@@ -117,4 +117,14 @@ public abstract class DataConnection implements Runnable {
         return ips[0] + "," + ips[1] + "," + ips[2] + "," + ips[3] +
                 "," + (port / 256) + "," + (port % 256);
     }
+
+    public void send(String msg, boolean isUTF8) throws IOException {
+        this.toWrite = ByteBuffer.wrap(msg.getBytes(
+                isUTF8 ? "UTF-8" : System.getProperty("client.file.encoding")));
+        synchronized (lock) {
+            lock.notify();
+        }
+        this.notified = true;
+        // System.out.println( "DEBUG: lock.notify()" );
+    }
 }
