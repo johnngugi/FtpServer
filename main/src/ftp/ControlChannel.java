@@ -86,14 +86,7 @@ public class ControlChannel implements Runnable {
             thread = null;
         }
 
-        if (channel != null) {
-            try {
-                channel.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            channel = null;
-        }
+        FtpUtil.releaseChannelResource(channel);
 
         running = false;
     }
