@@ -6,13 +6,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
-public class RequestHandler {
+public class RequestHandler implements DataConnectionListener {
 
     private final SocketChannel socket;
     private final String directory;
     private String userName;
     private Map<String, Consumer<String>> processFunctions = new HashMap<>();
     private boolean isBinary;
+    private DataConnection data;
+    private long restart;
 
     public RequestHandler(SocketChannel socket, String directory) {
         this.socket = socket;
@@ -22,6 +24,36 @@ public class RequestHandler {
         processFunctions.put("AUTH", this::processSecurityExtension);
         processFunctions.put("PWD", this::processWorkingDirecory);
         processFunctions.put("TYPE", this::processType);
+        processFunctions.put("PASV", this::processPassive);
+    }
+
+    public void processCommand(String command, String parameter) throws IOException {
+        command = command.toUpperCase();
+        try {
+            processFunctions.get(command).accept(parameter);
+        } catch (NullPointerException e) {
+            FtpUtil.println(socket, "502 not implemented");
+            e.printStackTrace();
+        }
+    }
+
+    private void processPassive(String parameter) {
+        if (data != null) {
+            data.stop();
+        }
+
+        this.restart = 0L;
+
+        try {
+            data = DataConnection.createPassive();
+            data.setFileOffset(restart);
+            data.addDataConnectionListener(this);
+            data.start();
+            FtpUtil.println(socket, "227 Entering Passive Mode (" + data.getAddressAsString() + ")");
+        } catch (IOException e) {
+            System.out.println("Error setting passive mode");
+            e.printStackTrace();
+        }
     }
 
     private void processType(String parameter) {
@@ -42,16 +74,6 @@ public class RequestHandler {
             FtpUtil.println(socket, "200 Type set to " + parameter);
         } catch (IOException e) {
             System.out.println("Error processing type");
-            e.printStackTrace();
-        }
-    }
-
-    public void processCommand(String command, String parameter) throws IOException {
-        command = command.toUpperCase();
-        try {
-            processFunctions.get(command).accept(parameter);
-        } catch (NullPointerException e) {
-            FtpUtil.println(socket, "502 not implemented");
             e.printStackTrace();
         }
     }
@@ -103,6 +125,28 @@ public class RequestHandler {
             FtpUtil.println(socket, "331 Password required for " + parameter);
         } catch (IOException e) {
             System.out.println("Error with processing user");
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void actionNegotiated(boolean isOk) {
+        System.out.println("* Event: actionNegotiated: " + isOk);
+    }
+
+    @Override
+    public void transferStarted() {
+        System.out.println("* Event: transferStarted");
+    }
+
+    @Override
+    public void transferCompleted(boolean hasError) {
+        System.out.println("* Event: transferCompleted: hasError=" + hasError);
+
+        try {
+            if (!hasError)
+                FtpUtil.println(socket, "226 Transfer complete.");
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
