@@ -25,7 +25,7 @@ public class RequestHandler implements DataConnectionListener {
     private SimpleDateFormat fmtPast = new SimpleDateFormat("MMM dd  yyyy", Locale.ENGLISH);
     private SimpleDateFormat fmtStamp = new SimpleDateFormat("yyyyMMddHHmmss");
 
-    public RequestHandler(SocketChannel socket, String directory) {
+    RequestHandler(SocketChannel socket, String directory) {
         this.socket = socket;
         this.directory = directory;
         processFunctions.put("USER", this::processUser);
@@ -35,6 +35,56 @@ public class RequestHandler implements DataConnectionListener {
         processFunctions.put("TYPE", this::processType);
         processFunctions.put("PASV", this::processPassive);
         processFunctions.put("LIST", this::processList);
+        processFunctions.put("CWD", this::processChangeWorkingDirectory);
+        processFunctions.put("CDUP", this::processChangeDirectoryUp);
+        processFunctions.put("RETR", this::processRetrieve);
+    }
+
+    public void processCommand(String command, String parameter) throws IOException {
+        command = command.toUpperCase();
+        try {
+            processFunctions.get(command).accept(parameter);
+        } catch (NullPointerException e) {
+            FtpUtil.println(socket, "502 " + command + " not implemented");
+            e.printStackTrace();
+        }
+    }
+
+    private void processChangeDirectoryUp(String parameter) {
+        processChangeWorkingDirectory("..");
+    }
+
+    private void processRetrieve(String parameter) {
+        // todo process retrieve
+    }
+
+    private void processChangeWorkingDirectory(String parameter) {
+        File toChange = null;
+        if (parameter.length() > 0 && parameter.charAt(0) == '/') {
+            toChange = new File(userRoot, parameter.substring(1));
+        } else {
+            toChange = new File(userCurrent, parameter);
+        }
+
+        try {
+            if (!toChange.exists() || !toChange.isDirectory()) {
+                FtpUtil.println(socket, "550 " + parameter + ": No such file or directory");
+                return;
+            }
+
+            String root = userRoot.getAbsolutePath();
+            String willChange = toChange.getCanonicalPath();
+            if (!willChange.startsWith(root)) {
+                FtpUtil.println(socket, "553 Requested action not taken.");
+                return;
+            }
+
+            this.userCurrent = new File(willChange);
+            FtpUtil.println(socket, "250 CWD command successful");
+        } catch (IOException e) {
+            System.out.println("Problem processing CWD");
+            e.printStackTrace();
+        }
     }
 
     private void processList(String parameter) {
@@ -100,16 +150,6 @@ public class RequestHandler implements DataConnectionListener {
         }
     }
 
-    public void processCommand(String command, String parameter) throws IOException {
-        command = command.toUpperCase();
-        try {
-            processFunctions.get(command).accept(parameter);
-        } catch (NullPointerException e) {
-            FtpUtil.println(socket, "502 not implemented");
-            e.printStackTrace();
-        }
-    }
-
     private void processPassive(String parameter) {
         if (data != null) {
             data.stop();
@@ -155,15 +195,13 @@ public class RequestHandler implements DataConnectionListener {
         try {
             String root = userRoot.getAbsolutePath();
             String curr = userCurrent.getAbsolutePath();
-            System.out.println("Root: " + root);
-            System.out.println("Current: " + curr);
 
             curr = curr.substring(root.length());
 
             if (curr.length() == 0)
                 curr = "/";
 
-            FtpUtil.println(socket, "257 " + this.directory);
+            FtpUtil.println(socket, "257 " + curr);
         } catch (IOException e) {
             System.out.println("Error occured with processing working directory");
             e.printStackTrace();
