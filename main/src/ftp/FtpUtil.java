@@ -9,18 +9,19 @@ import java.util.List;
 
 class FtpUtil {
 
+    static final String FTP_COMMAND_OPTS = "OPTS";
     static final String FTP_COMMAND_FEAT = "FEAT";
-    static String FTP_COMMAND_USER = "USER";
-    static String FTP_COMMAND_PASS = "PASS";
-    static String FTP_COMMAND_AUTH = "AUTH";
-    static String FTP_COMMAND_PWD = "PWD";
-    static String FTP_COMMAND_TYPE = "TYPE";
-    static String FTP_COMMAND_PASV = "PASV";
-    static String FTP_COMMAND_LIST = "LIST";
-    static String FTP_COMMAND_CWD = "CWD";
-    static String FTP_COMMAND_CDUP = "CDUP";
-    static String FTP_COMMAND_SYST = "SYST";
-    static String FTP_COMMAND_RETR = "RETR";
+    static final String FTP_COMMAND_USER = "USER";
+    static final String FTP_COMMAND_PASS = "PASS";
+    static final String FTP_COMMAND_AUTH = "AUTH";
+    static final String FTP_COMMAND_PWD = "PWD";
+    static final String FTP_COMMAND_TYPE = "TYPE";
+    static final String FTP_COMMAND_PASV = "PASV";
+    static final String FTP_COMMAND_LIST = "LIST";
+    static final String FTP_COMMAND_CWD = "CWD";
+    static final String FTP_COMMAND_CDUP = "CDUP";
+    static final String FTP_COMMAND_SYST = "SYST";
+    static final String FTP_COMMAND_RETR = "RETR";
 
     static String[] split(String line) {
         String command;

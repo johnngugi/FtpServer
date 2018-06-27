@@ -19,13 +19,13 @@ public class RequestHandler implements DataConnectionListener {
     private File userCurrent = null;
     private File userRoot = null;
 
-    private boolean isUTF8Enable = false;
+    private boolean isUTF8Enable = true;
 
     private SimpleDateFormat fmtDate = new SimpleDateFormat("MMM dd HH:mm", Locale.ENGLISH);
     private SimpleDateFormat fmtPast = new SimpleDateFormat("MMM dd  yyyy", Locale.ENGLISH);
     private SimpleDateFormat fmtStamp = new SimpleDateFormat("yyyyMMddHHmmss");
 
-    private String[] extensions = new String[] {
+    private String[] extensions = new String[]{
             FtpUtil.FTP_COMMAND_AUTH, FtpUtil.FTP_COMMAND_PASV
     };
 
@@ -35,7 +35,7 @@ public class RequestHandler implements DataConnectionListener {
         processFunctions.put(FtpUtil.FTP_COMMAND_USER, this::processUser);
         processFunctions.put(FtpUtil.FTP_COMMAND_PASS, this::processPassword);
         processFunctions.put(FtpUtil.FTP_COMMAND_AUTH, this::processSecurityExtension);
-        processFunctions.put(FtpUtil.FTP_COMMAND_PWD, this::processPrintWorkingDirecory);
+        processFunctions.put(FtpUtil.FTP_COMMAND_PWD, this::processPrintWorkingDirectory);
         processFunctions.put(FtpUtil.FTP_COMMAND_TYPE, this::processType);
         processFunctions.put(FtpUtil.FTP_COMMAND_PASV, this::processPassive);
         processFunctions.put(FtpUtil.FTP_COMMAND_LIST, this::processList);
@@ -43,7 +43,25 @@ public class RequestHandler implements DataConnectionListener {
         processFunctions.put(FtpUtil.FTP_COMMAND_CDUP, this::processChangeDirectoryUp);
         processFunctions.put(FtpUtil.FTP_COMMAND_SYST, this::processSystem);
         processFunctions.put(FtpUtil.FTP_COMMAND_FEAT, this::processFeatureList);
+        processFunctions.put(FtpUtil.FTP_COMMAND_OPTS, this::processOption);
         processFunctions.put(FtpUtil.FTP_COMMAND_RETR, this::processRetrieve);
+    }
+
+    private void processOption(String parameter) {
+        try {
+            String[] params = parameter.split(" ");
+            if (params.length > 1 && params[0].equalsIgnoreCase("UTF8")) {
+                String flag = params[1].toUpperCase();
+                isUTF8Enable = flag.equals("YES") || flag.equals("TRUE") || flag.equals("ON");
+
+                FtpUtil.println(socket, "200 OPTS UTF8 command successful.");
+            } else {
+                FtpUtil.println(socket, "501 Syntax error in parameters or arguments.");
+            }
+        } catch (IOException e) {
+            System.out.println("Error processing options");
+            e.printStackTrace();
+        }
     }
 
     public void processCommand(String command, String parameter) throws IOException {
@@ -59,7 +77,7 @@ public class RequestHandler implements DataConnectionListener {
     private void processFeatureList(String parameter) {
         StringBuilder sb = new StringBuilder();
         sb.append("211 Extensions supported:\r\n");
-        for (String extension: extensions) {
+        for (String extension : extensions) {
             sb.append(extension).append("\r\n");
         }
         sb.append("211 End.\r\n");
@@ -118,9 +136,7 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processList(String parameter) {
-        isUTF8Enable = true; // todo change this
         File[] files = userCurrent.listFiles();
-        System.out.println(Arrays.toString(files));
         StringBuilder sb = new StringBuilder();
 
         Calendar cal = Calendar.getInstance();
@@ -221,7 +237,7 @@ public class RequestHandler implements DataConnectionListener {
         }
     }
 
-    private void processPrintWorkingDirecory(String parameter) {
+    private void processPrintWorkingDirectory(String parameter) {
         try {
             String root = userRoot.getAbsolutePath();
             String curr = userCurrent.getAbsolutePath();
