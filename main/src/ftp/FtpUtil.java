@@ -7,7 +7,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.AbstractInterruptibleChannel;
 import java.util.List;
 
-public class FtpUtil {
+class FtpUtil {
 
     static String[] split(String line) {
         String command;
