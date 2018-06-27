@@ -25,19 +25,25 @@ public class RequestHandler implements DataConnectionListener {
     private SimpleDateFormat fmtPast = new SimpleDateFormat("MMM dd  yyyy", Locale.ENGLISH);
     private SimpleDateFormat fmtStamp = new SimpleDateFormat("yyyyMMddHHmmss");
 
+    private String[] extensions = new String[] {
+            FtpUtil.FTP_COMMAND_AUTH, FtpUtil.FTP_COMMAND_PASV
+    };
+
     RequestHandler(SocketChannel socket, String directory) {
         this.socket = socket;
         this.directory = directory;
-        processFunctions.put("USER", this::processUser);
-        processFunctions.put("PASS", this::processPassword);
-        processFunctions.put("AUTH", this::processSecurityExtension);
-        processFunctions.put("PWD", this::processPrintWorkingDirecory);
-        processFunctions.put("TYPE", this::processType);
-        processFunctions.put("PASV", this::processPassive);
-        processFunctions.put("LIST", this::processList);
-        processFunctions.put("CWD", this::processChangeWorkingDirectory);
-        processFunctions.put("CDUP", this::processChangeDirectoryUp);
-        processFunctions.put("RETR", this::processRetrieve);
+        processFunctions.put(FtpUtil.FTP_COMMAND_USER, this::processUser);
+        processFunctions.put(FtpUtil.FTP_COMMAND_PASS, this::processPassword);
+        processFunctions.put(FtpUtil.FTP_COMMAND_AUTH, this::processSecurityExtension);
+        processFunctions.put(FtpUtil.FTP_COMMAND_PWD, this::processPrintWorkingDirecory);
+        processFunctions.put(FtpUtil.FTP_COMMAND_TYPE, this::processType);
+        processFunctions.put(FtpUtil.FTP_COMMAND_PASV, this::processPassive);
+        processFunctions.put(FtpUtil.FTP_COMMAND_LIST, this::processList);
+        processFunctions.put(FtpUtil.FTP_COMMAND_CWD, this::processChangeWorkingDirectory);
+        processFunctions.put(FtpUtil.FTP_COMMAND_CDUP, this::processChangeDirectoryUp);
+        processFunctions.put(FtpUtil.FTP_COMMAND_SYST, this::processSystem);
+        processFunctions.put(FtpUtil.FTP_COMMAND_FEAT, this::processFeatureList);
+        processFunctions.put(FtpUtil.FTP_COMMAND_RETR, this::processRetrieve);
     }
 
     public void processCommand(String command, String parameter) throws IOException {
@@ -46,6 +52,30 @@ public class RequestHandler implements DataConnectionListener {
             processFunctions.get(command).accept(parameter);
         } catch (NullPointerException e) {
             FtpUtil.println(socket, "502 " + command + " not implemented");
+            e.printStackTrace();
+        }
+    }
+
+    private void processFeatureList(String parameter) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("211 Extensions supported:\r\n");
+        for (String extension: extensions) {
+            sb.append(extension).append("\r\n");
+        }
+        sb.append("211 End.\r\n");
+        System.out.println(sb.toString());
+        try {
+            FtpUtil.println(socket, sb.toString());
+        } catch (IOException e) {
+            System.out.println("Error sending feature list");
+            e.printStackTrace();
+        }
+    }
+
+    private void processSystem(String parameter) {
+        try {
+            FtpUtil.println(socket, "215 " + System.getProperty("os.name"));
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
@@ -249,7 +279,17 @@ public class RequestHandler implements DataConnectionListener {
         try {
             if (parameter.equals("Anonymous")) {
                 this.userName = parameter;
-                FtpUtil.println(socket, "331 Password should be email address");
+                userRoot = new File(this.directory);
+
+                if (!userRoot.exists()) {
+                    System.out.println("Directory doesn't exist");
+                    System.exit(1);
+//                userRoot.mkdirs();
+                }
+
+                userCurrent = userRoot;
+                FtpUtil.println(socket, "230 Anonymous user logged in");
+//                FtpUtil.println(socket, "331 Password should be email address");
                 return;
             }
             this.userName = parameter;

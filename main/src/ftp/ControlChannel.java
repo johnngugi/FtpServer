@@ -2,6 +2,7 @@ package ftp;
 
 import java.io.IOException;
 import java.nio.channels.SocketChannel;
+import java.util.NoSuchElementException;
 import java.util.Scanner;
 
 /**
@@ -19,7 +20,7 @@ public class ControlChannel implements Runnable {
      * Constructor class that initialises field method and calls onConnect() method
      *
      * @param socketChannel socketChannel
-     * @param directory default home directory
+     * @param directory     default home directory
      * @throws IOException thrown by onConnect() method
      */
     public ControlChannel(SocketChannel socketChannel, String directory) throws IOException {
@@ -69,7 +70,12 @@ public class ControlChannel implements Runnable {
 
                 requestHandler.processCommand(command, parameter);
             }
-        } catch (IOException e) {
+        }
+//        catch (NoSuchElementException e) {
+//            System.out.println("* FTPChannel was closed. (" +
+//                    channel.socket().getInetAddress() + ")");
+//        }
+        catch (IOException e) {
             System.out.println("Channel error occurred");
             e.printStackTrace();
         } finally {
