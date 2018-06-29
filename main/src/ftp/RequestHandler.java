@@ -47,6 +47,9 @@ public class RequestHandler implements DataConnectionListener {
         processFunctions.put(FtpUtil.FTP_COMMAND_RETR, this::processRetrieve);
         processFunctions.put(FtpUtil.FTP_COMMAND_REST, this::processFileReset);
         processFunctions.put(FtpUtil.FTP_COMMAND_STOR, this::processStore);
+        processFunctions.put(FtpUtil.FTP_COMMAND_DELE, this::processDelete);
+        processFunctions.put(FtpUtil.FTP_COMMAND_SIZE, this::processFileSize);
+        processFunctions.put(FtpUtil.FTP_COMMAND_QUIT, this::processQuit);
     }
 
     void processCommand(String command, String parameter) throws IOException {
@@ -55,6 +58,61 @@ public class RequestHandler implements DataConnectionListener {
             processFunctions.get(command).accept(parameter);
         } catch (NullPointerException e) {
             FtpUtil.println(socket, "502 " + command + " not implemented");
+            e.printStackTrace();
+        }
+    }
+
+    private void processQuit(String parameter) {
+        try {
+            FtpUtil.println( socket, "221 Goodbye." );
+        } catch (IOException e) {
+            System.out.println("Error quiting");
+            e.printStackTrace();
+        } finally {
+            data.stop();
+            FtpUtil.releaseChannelResource(socket);
+        }
+    }
+
+    private void processFileSize(String parameter) {
+        File f = null;
+        if (parameter.charAt(0) == '/')
+            f = new File(userRoot, parameter);
+        else
+            f = new File(userCurrent, parameter);
+
+        try {
+            if (f.exists()) {
+                FtpUtil.println(socket, "213 " + f.length());
+            } else {
+                FtpUtil.println(socket, "550 " + parameter + ": No such file or directory");
+            }
+        } catch (IOException e) {
+            System.out.println("Error processing SIZE command");
+            e.printStackTrace();
+        }
+    }
+
+    private void processDelete(String parameter) {
+        File f = null;
+        if (parameter.charAt(0) == '/')
+            f = new File(userRoot, parameter);
+        else
+            f = new File(userCurrent, parameter);
+
+        try {
+            if (!f.exists()) {
+                FtpUtil.println(socket, "521 " + parameter + ": No such directory.");
+                return;
+            }
+
+            if (f.isFile() && f.delete()) {
+                FtpUtil.println(socket, "250 DELE command successful.");
+            } else {
+                FtpUtil.println(socket, "521 Removing file was failed.");
+            }
+        } catch (IOException e) {
+            System.out.println("Error processing DELE command");
             e.printStackTrace();
         }
     }
@@ -193,6 +251,7 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processList(String parameter) {
+        System.out.println("List    llllllllllllllllllllllllll");
         File[] files = userCurrent.listFiles();
         StringBuilder sb = new StringBuilder();
 
