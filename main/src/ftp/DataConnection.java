@@ -28,11 +28,11 @@ public abstract class DataConnection implements Runnable {
     private File fileReceive = null;
     private long offset = 0L;
 
-    public static DataConnection createPassive() throws IOException {
+    static DataConnection createPassive() throws IOException {
         return new PassiveConnection();
     }
 
-    public void start() {
+    void start() {
         if (thread == null) {
             thread = new Thread(this);
             thread.start();
@@ -102,23 +102,23 @@ public abstract class DataConnection implements Runnable {
         }
     }
 
-    public void setFileOffset(long offset) {
+    void setFileOffset(long offset) {
         this.offset = offset;
     }
 
-    public void addDataConnectionListener(DataConnectionListener l) {
+    void addDataConnectionListener(DataConnectionListener l) {
         if (!listeners.contains(l))
             listeners.add(l);
     }
 
-    public String getAddressAsString() {
+    String getAddressAsString() {
         int port = address.getPort();
         String[] ips = address.getAddress().getHostAddress().split("\\.");
         return ips[0] + "," + ips[1] + "," + ips[2] + "," + ips[3] +
                 "," + (port / 256) + "," + (port % 256);
     }
 
-    public void send(String msg, boolean isUTF8) throws IOException {
+    void send(String msg, boolean isUTF8) throws IOException {
         this.toWrite = ByteBuffer.wrap(msg.getBytes(
                 isUTF8 ? "UTF-8" : System.getProperty("client.file.encoding")));
         synchronized (lock) {
@@ -126,5 +126,14 @@ public abstract class DataConnection implements Runnable {
         }
         this.notified = true;
         // System.out.println( "DEBUG: lock.notify()" );
+    }
+
+    void sendFile(File f) {
+        this.toWrite = null;
+        this.fileSend = f;
+        synchronized (lock) {
+            lock.notify();
+        }
+        this.notified = true;
     }
 }

@@ -9,6 +9,7 @@ import java.util.List;
 
 class FtpUtil {
 
+    static final String FTP_COMMAND_REST = "REST";
     static final String FTP_COMMAND_OPTS = "OPTS";
     static final String FTP_COMMAND_FEAT = "FEAT";
     static final String FTP_COMMAND_USER = "USER";
