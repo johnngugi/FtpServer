@@ -409,7 +409,7 @@ public class RequestHandler implements DataConnectionListener {
 
     private void processUser(String parameter) {
         try {
-            if (parameter.equals("Anonymous")) {
+            if (parameter.toLowerCase().equals("anonymous")) {
                 this.userName = parameter;
                 userRoot = new File(this.directory);
 
