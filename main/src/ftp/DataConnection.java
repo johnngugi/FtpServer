@@ -136,4 +136,13 @@ public abstract class DataConnection implements Runnable {
         }
         this.notified = true;
     }
+
+    public void storeFile(File f) {
+        this.toWrite = null;
+        this.fileReceive = f;
+        synchronized (lock) {
+            lock.notify();
+        }
+        this.notified = true;
+    }
 }

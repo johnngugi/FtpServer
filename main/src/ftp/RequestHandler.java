@@ -45,7 +45,8 @@ public class RequestHandler implements DataConnectionListener {
         processFunctions.put(FtpUtil.FTP_COMMAND_FEAT, this::processFeatureList);
         processFunctions.put(FtpUtil.FTP_COMMAND_OPTS, this::processOption);
         processFunctions.put(FtpUtil.FTP_COMMAND_RETR, this::processRetrieve);
-        processFunctions.put(FtpUtil.FTP_COMMAND_REST, this::processReset);
+        processFunctions.put(FtpUtil.FTP_COMMAND_REST, this::processFileReset);
+        processFunctions.put(FtpUtil.FTP_COMMAND_STOR, this::processStore);
     }
 
     void processCommand(String command, String parameter) throws IOException {
@@ -58,7 +59,23 @@ public class RequestHandler implements DataConnectionListener {
         }
     }
 
-    private void processReset(String parameter) {
+    private void processStore(String parameter) {
+        File f = new File(userCurrent, parameter);
+
+        try {
+            if (data != null) {
+                FtpUtil.println(socket, "150 Opening BINARY mode data connection for " + parameter);
+                data.storeFile(f);
+            } else {
+                FtpUtil.println(socket, "552 Requested file action aborted.");
+            }
+        } catch (IOException e) {
+            System.out.println("Error processing STOR command");
+            e.printStackTrace();
+        }
+    }
+
+    private void processFileReset(String parameter) {
         long offset = Long.parseLong(parameter);
         this.restart = offset;
         if (data != null) {
