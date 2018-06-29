@@ -26,7 +26,7 @@ public class RequestHandler implements DataConnectionListener {
     private SimpleDateFormat fmtStamp = new SimpleDateFormat("yyyyMMddHHmmss");
 
     private String[] extensions = new String[]{
-            FtpUtil.FTP_COMMAND_AUTH, FtpUtil.FTP_COMMAND_PASV
+            FtpUtil.FTP_COMMAND_AUTH, FtpUtil.FTP_COMMAND_PASV, "UTF8"
     };
 
     RequestHandler(SocketChannel socket, String directory) {
@@ -45,6 +45,107 @@ public class RequestHandler implements DataConnectionListener {
         processFunctions.put(FtpUtil.FTP_COMMAND_FEAT, this::processFeatureList);
         processFunctions.put(FtpUtil.FTP_COMMAND_OPTS, this::processOption);
         processFunctions.put(FtpUtil.FTP_COMMAND_RETR, this::processRetrieve);
+        processFunctions.put(FtpUtil.FTP_COMMAND_REST, this::processFileReset);
+        processFunctions.put(FtpUtil.FTP_COMMAND_STOR, this::processStore);
+        processFunctions.put(FtpUtil.FTP_COMMAND_DELE, this::processDelete);
+        processFunctions.put(FtpUtil.FTP_COMMAND_SIZE, this::processFileSize);
+        processFunctions.put(FtpUtil.FTP_COMMAND_QUIT, this::processQuit);
+    }
+
+    void processCommand(String command, String parameter) throws IOException {
+        command = command.toUpperCase();
+        try {
+            processFunctions.get(command).accept(parameter);
+        } catch (NullPointerException e) {
+            FtpUtil.println(socket, "502 " + command + " not implemented");
+            e.printStackTrace();
+        }
+    }
+
+    private void processQuit(String parameter) {
+        try {
+            FtpUtil.println( socket, "221 Goodbye." );
+        } catch (IOException e) {
+            System.out.println("Error quiting");
+            e.printStackTrace();
+        } finally {
+            data.stop();
+            FtpUtil.releaseChannelResource(socket);
+        }
+    }
+
+    private void processFileSize(String parameter) {
+        File f = null;
+        if (parameter.charAt(0) == '/')
+            f = new File(userRoot, parameter);
+        else
+            f = new File(userCurrent, parameter);
+
+        try {
+            if (f.exists()) {
+                FtpUtil.println(socket, "213 " + f.length());
+            } else {
+                FtpUtil.println(socket, "550 " + parameter + ": No such file or directory");
+            }
+        } catch (IOException e) {
+            System.out.println("Error processing SIZE command");
+            e.printStackTrace();
+        }
+    }
+
+    private void processDelete(String parameter) {
+        File f = null;
+        if (parameter.charAt(0) == '/')
+            f = new File(userRoot, parameter);
+        else
+            f = new File(userCurrent, parameter);
+
+        try {
+            if (!f.exists()) {
+                FtpUtil.println(socket, "521 " + parameter + ": No such directory.");
+                return;
+            }
+
+            if (f.isFile() && f.delete()) {
+                FtpUtil.println(socket, "250 DELE command successful.");
+            } else {
+                FtpUtil.println(socket, "521 Removing file was failed.");
+            }
+        } catch (IOException e) {
+            System.out.println("Error processing DELE command");
+            e.printStackTrace();
+        }
+    }
+
+    private void processStore(String parameter) {
+        File f = new File(userCurrent, parameter);
+
+        try {
+            if (data != null) {
+                FtpUtil.println(socket, "150 Opening BINARY mode data connection for " + parameter);
+                data.storeFile(f);
+            } else {
+                FtpUtil.println(socket, "552 Requested file action aborted.");
+            }
+        } catch (IOException e) {
+            System.out.println("Error processing STOR command");
+            e.printStackTrace();
+        }
+    }
+
+    private void processFileReset(String parameter) {
+        long offset = Long.parseLong(parameter);
+        this.restart = offset;
+        if (data != null) {
+            data.setFileOffset(offset);
+        }
+
+        try {
+            FtpUtil.println(socket, "350 Restarting at " + offset + ". Send STORE or RETRIEVE to initiate transfer");
+        } catch (IOException e) {
+            System.out.println("Error processing REST command");
+            e.printStackTrace();
+        }
     }
 
     private void processOption(String parameter) {
@@ -54,22 +155,12 @@ public class RequestHandler implements DataConnectionListener {
                 String flag = params[1].toUpperCase();
                 isUTF8Enable = flag.equals("YES") || flag.equals("TRUE") || flag.equals("ON");
 
-                FtpUtil.println(socket,"200 OPTS UTF8 command successful.");
+                FtpUtil.println(socket, "200 OPTS UTF8 command successful.");
             } else {
-                FtpUtil.println(socket,"501 Syntax error in parameters or arguments.");
+                FtpUtil.println(socket, "501 Syntax error in parameters or arguments.");
             }
         } catch (IOException e) {
             System.out.println("Error processing options");
-            e.printStackTrace();
-        }
-    }
-
-    public void processCommand(String command, String parameter) throws IOException {
-        command = command.toUpperCase();
-        try {
-            processFunctions.get(command).accept(parameter);
-        } catch (NullPointerException e) {
-            FtpUtil.println(socket, "502 " + command + " not implemented");
             e.printStackTrace();
         }
     }
@@ -103,7 +194,31 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processRetrieve(String parameter) {
-        // todo process retrieve
+        File f = null;
+        if (parameter.charAt(0) == '/')
+            f = new File(userRoot, parameter);
+        else
+            f = new File(userCurrent, parameter);
+
+        try {
+            if (!f.exists()) {
+                FtpUtil.println(socket, "550 " + parameter + ": No such file or directory");
+                if (data != null)
+                    data.stop();
+                return;
+            }
+
+            if (data != null) {
+                FtpUtil.println(socket, "150 Opening BINARY mode data connection for " +
+                        parameter + " (" + f.length() + " bytes)");
+                data.sendFile(f);
+            } else {
+                FtpUtil.println(socket, "552 Requested file action aborted.");
+            }
+        } catch (IOException e) {
+            System.out.println("Error processing RETR command");
+            e.printStackTrace();
+        }
     }
 
     private void processChangeWorkingDirectory(String parameter) {
@@ -293,7 +408,7 @@ public class RequestHandler implements DataConnectionListener {
 
     private void processUser(String parameter) {
         try {
-            if (parameter.equals("Anonymous")) {
+            if (parameter.toLowerCase().equals("anonymous")) {
                 this.userName = parameter;
                 userRoot = new File(this.directory);
 

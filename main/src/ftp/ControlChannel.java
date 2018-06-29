@@ -70,12 +70,10 @@ public class ControlChannel implements Runnable {
 
                 requestHandler.processCommand(command, parameter);
             }
-        }
-//        catch (NoSuchElementException e) {
-//            System.out.println("* FTPChannel was closed. (" +
-//                    channel.socket().getInetAddress() + ")");
-//        }
-        catch (IOException e) {
+        } catch (NoSuchElementException e) {
+            System.out.println("* FTPChannel was closed. (" +
+                    channel.socket().getInetAddress() + ")");
+        } catch (IOException e) {
             System.out.println("Channel error occurred");
             e.printStackTrace();
         } finally {
