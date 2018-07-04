@@ -32,7 +32,8 @@ public class RequestHandler implements DataConnectionListener {
             FtpUtil.FTP_COMMAND_AUTH, FtpUtil.FTP_COMMAND_PASV, "UTF8",
             FtpUtil.FTP_COMMAND_PORT, FtpUtil.FTP_COMMAND_MKD,
             FtpUtil.FTP_COMMAND_CDUP, FtpUtil.FTP_COMMAND_SYST,
-            FtpUtil.FTP_COMMAND_RMD, FtpUtil.FTP_COMMAND_SIZE
+            FtpUtil.FTP_COMMAND_RMD, FtpUtil.FTP_COMMAND_SIZE,
+            FtpUtil.FTP_COMMAND_MDTM
     };
 
     RequestHandler(SocketChannel socket, String directory) {
@@ -61,6 +62,8 @@ public class RequestHandler implements DataConnectionListener {
         processFunctions.put(FtpUtil.FTP_COMMAND_RMD, this::processDirectoryRemove);
         processFunctions.put(FtpUtil.FTP_COMMAND_NLST, this::processNameList);
         processFunctions.put(FtpUtil.FTP_COMMAND_EPRT, this::processPortExtensionCommand);
+        processFunctions.put(FtpUtil.FTP_COMMAND_MDTM, this::processModifiedTime);
+        processFunctions.put(FtpUtil.FTP_COMMAND_NOOP, this::processNOOP);
     }
 
     void processCommand(String command, String parameter) throws IOException {
@@ -69,6 +72,28 @@ public class RequestHandler implements DataConnectionListener {
             processFunctions.get(command).accept(parameter);
         } catch (NullPointerException e) {
             FtpUtil.println(socket, "502 " + command + " not implemented");
+            e.printStackTrace();
+        }
+    }
+
+    private void processNOOP(String parameter) {
+        try {
+            FtpUtil.println(socket,  "200 NOOP command successful." );
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void processModifiedTime(String parameter) {
+        File f = new File(userCurrent, parameter);
+        try {
+            if (f.exists()) {
+                FtpUtil.println(socket, "213 " + fmtStamp.format(f.lastModified()));
+            } else {
+                FtpUtil.println(socket, "550 " + parameter + ": No such file or directory");
+            }
+        } catch (IOException e) {
+            System.out.println("Error processing MDTM");
             e.printStackTrace();
         }
     }

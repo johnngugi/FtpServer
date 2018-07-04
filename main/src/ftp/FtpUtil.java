@@ -9,6 +9,8 @@ import java.util.List;
 
 class FtpUtil {
 
+    static final String FTP_COMMAND_NOOP = "NOOP";
+    static final String FTP_COMMAND_MDTM = "MDTM";
     static final String FTP_COMMAND_EPRT = "EPRT";
     static final String FTP_COMMAND_NLST = "NLST";
     static final String FTP_COMMAND_RMD = "RMD";
