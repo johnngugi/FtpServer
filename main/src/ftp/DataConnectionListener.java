@@ -5,5 +5,5 @@ public interface DataConnectionListener {
 
     void transferStarted();
 
-    void transferCompleted(boolean b);
+    void transferCompleted(boolean hasError);
 }

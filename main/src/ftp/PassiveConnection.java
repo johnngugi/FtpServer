@@ -1,10 +1,9 @@
 package ftp;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
+import java.net.*;
 import java.nio.channels.ServerSocketChannel;
+import java.util.Enumeration;
 
 public class PassiveConnection extends DataConnection {
 
@@ -12,32 +11,62 @@ public class PassiveConnection extends DataConnection {
     private ServerSocketChannel socket;
 
     PassiveConnection() throws IOException {
-        InetAddress local = InetAddress.getLocalHost();
-//        if (local.isLoopbackAddress())
-//            throw new IOException("Can't take local ip address");
+        InetAddress local = getCurrentIp();
+        if (local == null)
+            throw new IOException("Can't get local ip address");
 
-        ServerSocket sock = new ServerSocket();
-        int okPort = -1;
-        int errorCount = 0;
-        while (errorCount < 20) {
-            int port = 4096 + (int) (Math.random() * 40000.0D);
-            try {
-                sock.bind(new InetSocketAddress(local, port));
-                okPort = port;
-            } catch (IOException e) {
-                errorCount++;
-                continue;
-            }
-            break;
-        }
-        sock.close();
+        int port = findFreePort();
 
-        this.address = new InetSocketAddress(local, okPort);
+        this.address = new InetSocketAddress(local, port);
+        System.out.println(address.getPort());
 
         socket = ServerSocketChannel.open();
         socket.configureBlocking(true);
         socket.socket().setSoTimeout(1000 * 10);
         socket.socket().bind(this.address);
+    }
+
+    private InetAddress getCurrentIp() {
+        try {
+            InetAddress local = InetAddress.getLocalHost();
+            if (!local.isLoopbackAddress()) {
+                return local;
+            }
+            Enumeration en = NetworkInterface.getNetworkInterfaces();
+            while (en.hasMoreElements()) {
+                NetworkInterface ni = (NetworkInterface) en.nextElement();
+                Enumeration ee = ni.getInetAddresses();
+                while (ee.hasMoreElements()) {
+                    InetAddress ia = (InetAddress) ee.nextElement();
+                    if (!ia.isLoopbackAddress() && ia instanceof Inet4Address) {
+                        return ia;
+                    }
+                }
+            }
+        } catch (UnknownHostException | SocketException e) {
+            System.out.println("Error getting address");
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    private static int findFreePort() {
+        ServerSocket socket = null;
+        try {
+            socket = new ServerSocket(0);
+            socket.setReuseAddress(true);
+            int port = socket.getLocalPort();
+            try {
+                socket.close();
+            } catch (IOException e) {
+                // Ignore IOException on close()
+            }
+            return port;
+        } catch (IOException e) {
+            System.out.println("Couldn't find free port");
+            e.printStackTrace();
+        }
+        return -1;
     }
 
     protected void doNegotiate() throws IOException {
