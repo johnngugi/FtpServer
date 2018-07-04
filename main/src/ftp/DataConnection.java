@@ -83,6 +83,8 @@ public abstract class DataConnection implements Runnable {
                 l.transferCompleted(false);
 
         } catch (InterruptedException e) {
+            System.out.println("Interrupted exception");
+            e.printStackTrace();
             FtpUtil.setTransferComplete(isNegotiable, listeners);
         } catch (Exception e) {
             e.printStackTrace();
@@ -137,7 +139,7 @@ public abstract class DataConnection implements Runnable {
         this.notified = true;
     }
 
-    public void storeFile(File f) {
+    void storeFile(File f) {
         this.toWrite = null;
         this.fileReceive = f;
         synchronized (lock) {

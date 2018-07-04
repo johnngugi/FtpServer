@@ -141,7 +141,8 @@ public class RequestHandler implements DataConnectionListener {
         }
 
         try {
-            FtpUtil.println(socket, "350 Restarting at " + offset + ". Send STORE or RETRIEVE to initiate transfer");
+            FtpUtil.println(socket, "350 Restarting at " + offset +
+                    ". Send STORE or RETRIEVE to initiate transfer");
         } catch (IOException e) {
             System.out.println("Error processing REST command");
             e.printStackTrace();
@@ -167,11 +168,12 @@ public class RequestHandler implements DataConnectionListener {
 
     private void processFeatureList(String parameter) {
         StringBuilder sb = new StringBuilder();
-        sb.append("211 Extensions supported:\r\n");
+        sb.append("211-Extensions supported:\r\n");
         for (String extension : extensions) {
-            sb.append(extension).append("\r\n");
+            String toAppend = " " + extension + "\r\n";
+            sb.append(toAppend);
         }
-        sb.append("211 End.\r\n");
+        sb.append("211 End\r\n");
         System.out.println(sb.toString());
         try {
             FtpUtil.println(socket, sb.toString());
@@ -183,7 +185,7 @@ public class RequestHandler implements DataConnectionListener {
 
     private void processSystem(String parameter) {
         try {
-            FtpUtil.println(socket, "215 " + System.getProperty("os.name"));
+            FtpUtil.println(socket, "215 UNIX Type: L8");
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -251,7 +253,6 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processList(String parameter) {
-        System.out.println("List    llllllllllllllllllllllllll");
         File[] files = userCurrent.listFiles();
         StringBuilder sb = new StringBuilder();
 
@@ -270,20 +271,18 @@ public class RequestHandler implements DataConnectionListener {
                     sb.append("drwxr-xr-x");
                 } else if (f.isFile()) {
                     sb.append("-rw-r--r--");
-                }
+                } else continue;
 
                 sb.append(' ');
-                sb.append(String.format("%3d", 1));
+                sb.append(String.format("%4d", 1));
                 sb.append(' ');
-                sb.append(String.format("%-8s", this.userName));
+                sb.append("user");
                 sb.append(' ');
-                sb.append(String.format("%-8s", this.userName));
-                sb.append(' ');
+                sb.append("group");
                 long len = f.length();
-                System.out.println("Length: " + len);
                 if (f.isDirectory())
                     len = 4096;
-                sb.append(String.format("%8d", len));
+                sb.append(String.format("%13d", len));
                 sb.append(' ');
 
                 cal.setTimeInMillis(f.lastModified());
@@ -296,11 +295,11 @@ public class RequestHandler implements DataConnectionListener {
                 sb.append(f.getName());
                 sb.append("\r\n");
             }
-            System.out.println("LIST result " + sb.toString());
+            System.out.println(sb.toString());
 
             try {
                 if (data != null) {
-                    FtpUtil.println(socket, "150 Opening ASCII mode data connection for file list");
+                    FtpUtil.println(socket, "150 Opening ASCII mode data connection for file list.\r\n");
                     data.send(sb.toString(), isUTF8Enable);
                 } else {
                     FtpUtil.println(socket, "552 Requested file list action aborted.");
@@ -448,7 +447,7 @@ public class RequestHandler implements DataConnectionListener {
 
         try {
             if (!hasError)
-                FtpUtil.println(socket, "226 Transfer complete.");
+                FtpUtil.println(socket, "226 Transfer complete.\r\n");
         } catch (IOException e) {
             e.printStackTrace();
         }
