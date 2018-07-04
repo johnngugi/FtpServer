@@ -27,7 +27,10 @@ public class RequestHandler implements DataConnectionListener {
     private SimpleDateFormat fmtStamp = new SimpleDateFormat("yyyyMMddHHmmss");
 
     private String[] extensions = new String[]{
-            FtpUtil.FTP_COMMAND_AUTH, FtpUtil.FTP_COMMAND_PASV, "UTF8"
+            FtpUtil.FTP_COMMAND_AUTH, FtpUtil.FTP_COMMAND_PASV, "UTF8",
+            FtpUtil.FTP_COMMAND_PORT, FtpUtil.FTP_COMMAND_MKD,
+            FtpUtil.FTP_COMMAND_CDUP, FtpUtil.FTP_COMMAND_SYST,
+            FtpUtil.FTP_COMMAND_RMD
     };
 
     RequestHandler(SocketChannel socket, String directory) {
@@ -52,6 +55,9 @@ public class RequestHandler implements DataConnectionListener {
         processFunctions.put(FtpUtil.FTP_COMMAND_SIZE, this::processFileSize);
         processFunctions.put(FtpUtil.FTP_COMMAND_QUIT, this::processQuit);
         processFunctions.put(FtpUtil.FTP_COMMAND_PORT, this::processPortCommand);
+        processFunctions.put(FtpUtil.FTP_COMMAND_MKD, this::processDirectoryMake);
+        processFunctions.put(FtpUtil.FTP_COMMAND_RMD, this::processDirectoryRemove);
+        processFunctions.put(FtpUtil.FTP_COMMAND_NLST, this::processNameList);
     }
 
     void processCommand(String command, String parameter) throws IOException {
@@ -60,6 +66,85 @@ public class RequestHandler implements DataConnectionListener {
             processFunctions.get(command).accept(parameter);
         } catch (NullPointerException e) {
             FtpUtil.println(socket, "502 " + command + " not implemented");
+            e.printStackTrace();
+        }
+    }
+
+    private void processNameList(String parameter) {
+        File[] files = userCurrent.listFiles();
+        StringBuilder sb = new StringBuilder();
+        if (files != null) {
+            for (File f : files)
+                sb.append(f.getName()).append("\r\n");
+        }
+
+        try {
+            if (data != null && sb.length() != 0) {
+                FtpUtil.println(socket, "150 Opening ASCII mode data connection for file list");
+                data.send(sb.toString(), isUTF8Enable);
+            } else {
+                FtpUtil.println(socket, "552 Requested file list action aborted.");
+            }
+        } catch (IOException e) {
+            System.out.println("Error processing NLST command");
+            e.printStackTrace();
+        }
+    }
+
+    private String getUserPath(File f) throws IOException {
+        String root = userRoot.getCanonicalPath();
+        String path = f.getCanonicalPath();
+
+        path = path.substring(root.length()).replace('\\', '/');
+        if (path.charAt(0) != '/')
+            path = '/' + path;
+        return path;
+    }
+
+    private void processDirectoryRemove(String parameter) {
+        File f = null;
+        if (parameter.charAt(0) == '/')
+            f = new File(userRoot, parameter);
+        else
+            f = new File(userCurrent, parameter);
+
+        try {
+            if (!f.exists()) {
+                FtpUtil.println(socket, "521 " + parameter + ": No such directory.");
+                return;
+            }
+
+            if (f.isDirectory() && f.delete()) {
+                FtpUtil.println(socket, "250 RMD command successful.");
+            } else {
+                FtpUtil.println(socket, "521 Removing directory was failed.");
+            }
+        } catch (IOException e) {
+            System.out.println("Problem processing RMD command");
+            e.printStackTrace();
+        }
+    }
+
+    private void processDirectoryMake(String parameter) {
+        File f = null;
+        if (parameter.charAt(0) == '/')
+            f = new File(userRoot, parameter);
+        else
+            f = new File(userCurrent, parameter);
+
+        try {
+            if (f.exists()) {
+                FtpUtil.println(socket, "521 Directory already exists.");
+                return;
+            }
+
+            if (f.mkdir()) {
+                FtpUtil.println(socket, "257 \"" + getUserPath(f) + "\" - Directory successfully created.");
+            } else {
+                FtpUtil.println(socket, "521 Making directory was failed.");
+            }
+        } catch (IOException e) {
+            System.out.println("Error processing MKD");
             e.printStackTrace();
         }
     }
@@ -395,6 +480,8 @@ public class RequestHandler implements DataConnectionListener {
 
             if (curr.length() == 0)
                 curr = "/";
+
+            curr = curr.replace('\\', '/');
 
             FtpUtil.println(socket, "257 " + curr);
         } catch (IOException e) {
