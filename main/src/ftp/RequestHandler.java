@@ -2,7 +2,9 @@ package ftp;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.nio.channels.SocketChannel;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -30,7 +32,7 @@ public class RequestHandler implements DataConnectionListener {
             FtpUtil.FTP_COMMAND_AUTH, FtpUtil.FTP_COMMAND_PASV, "UTF8",
             FtpUtil.FTP_COMMAND_PORT, FtpUtil.FTP_COMMAND_MKD,
             FtpUtil.FTP_COMMAND_CDUP, FtpUtil.FTP_COMMAND_SYST,
-            FtpUtil.FTP_COMMAND_RMD
+            FtpUtil.FTP_COMMAND_RMD, FtpUtil.FTP_COMMAND_SIZE
     };
 
     RequestHandler(SocketChannel socket, String directory) {
@@ -58,6 +60,7 @@ public class RequestHandler implements DataConnectionListener {
         processFunctions.put(FtpUtil.FTP_COMMAND_MKD, this::processDirectoryMake);
         processFunctions.put(FtpUtil.FTP_COMMAND_RMD, this::processDirectoryRemove);
         processFunctions.put(FtpUtil.FTP_COMMAND_NLST, this::processNameList);
+        processFunctions.put(FtpUtil.FTP_COMMAND_EPRT, this::processPortExtensionCommand);
     }
 
     void processCommand(String command, String parameter) throws IOException {
@@ -67,6 +70,45 @@ public class RequestHandler implements DataConnectionListener {
         } catch (NullPointerException e) {
             FtpUtil.println(socket, "502 " + command + " not implemented");
             e.printStackTrace();
+        }
+    }
+
+    private void processPortExtensionCommand(String parameter) {
+        String[] params = parameter.split("\\|");
+        if (data != null) {
+            data.stop();
+            data = null;
+        }
+
+        this.restart = 0L;
+        InetAddress addr = null;
+        int port = 0;
+        try {
+            if (params[1].equals("1")) // IPv4
+                addr = InetAddress.getAllByName(params[2])[0];
+            if (params[1].equals("2")) // IPv6
+                addr = InetAddress.getAllByName(params[2])[0];
+            port = Integer.parseInt(params[3]);
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+        }
+
+        InetSocketAddress sock = null;
+        try {
+            sock = new InetSocketAddress(addr, port);
+            FtpUtil.println(socket, "200 EPRT command successful.");
+
+            this.data = DataConnection.createActive(sock);
+            this.data.setFileOffset(restart);
+            this.data.addDataConnectionListener(this);
+            this.data.start();
+        } catch (IOException e) {
+            e.printStackTrace();
+            try {
+                FtpUtil.println(socket, "500 Invalid port format.");
+            } catch (IOException e1) {
+                e1.printStackTrace();
+            }
         }
     }
 
