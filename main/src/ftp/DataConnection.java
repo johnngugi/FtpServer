@@ -32,6 +32,10 @@ public abstract class DataConnection implements Runnable {
         return new PassiveConnection();
     }
 
+    static DataConnection createActive(InetSocketAddress addr) {
+        return new ActiveConnection();
+    }
+
     void start() {
         if (thread == null) {
             thread = new Thread(this);

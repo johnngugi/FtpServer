@@ -2,6 +2,7 @@ package ftp;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.channels.SocketChannel;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -50,6 +51,7 @@ public class RequestHandler implements DataConnectionListener {
         processFunctions.put(FtpUtil.FTP_COMMAND_DELE, this::processDelete);
         processFunctions.put(FtpUtil.FTP_COMMAND_SIZE, this::processFileSize);
         processFunctions.put(FtpUtil.FTP_COMMAND_QUIT, this::processQuit);
+        processFunctions.put(FtpUtil.FTP_COMMAND_PORT, this::processPortCommand);
     }
 
     void processCommand(String command, String parameter) throws IOException {
@@ -62,9 +64,41 @@ public class RequestHandler implements DataConnectionListener {
         }
     }
 
+    private void processPortCommand(String parameter) {
+        String[] ports = parameter.split(",");
+        if (data != null) {
+            data.stop();
+            data = null;
+        }
+
+        this.restart = 0L;
+
+        InetSocketAddress addr = null;
+        try {
+            addr = new InetSocketAddress(
+                    ports[0] + "." + ports[1] + "." + ports[2] + "." + ports[3],
+                    Integer.parseInt(ports[4]) * 256 +
+                            Integer.parseInt(ports[5]));
+
+            FtpUtil.println(socket, "200 PORT command successful.");
+
+            this.data = DataConnection.createActive(addr);
+            this.data.setFileOffset(restart);
+            this.data.addDataConnectionListener(this);
+            this.data.start();
+        } catch (IOException e) {
+            e.printStackTrace();
+            try {
+                FtpUtil.println(socket, "500 Invalid port format.");
+            } catch (IOException e1) {
+                e1.printStackTrace();
+            }
+        }
+    }
+
     private void processQuit(String parameter) {
         try {
-            FtpUtil.println( socket, "221 Goodbye." );
+            FtpUtil.println(socket, "221 Goodbye.");
         } catch (IOException e) {
             System.out.println("Error quiting");
             e.printStackTrace();
