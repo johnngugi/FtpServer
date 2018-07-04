@@ -21,6 +21,7 @@ public class RequestHandler implements DataConnectionListener {
     private long restart;
     private File userCurrent = null;
     private File userRoot = null;
+    private boolean isAuth;
 
     private boolean isUTF8Enable = true;
 
@@ -78,13 +79,14 @@ public class RequestHandler implements DataConnectionListener {
 
     private void processNOOP(String parameter) {
         try {
-            FtpUtil.println(socket,  "200 NOOP command successful." );
+            FtpUtil.println(socket, "200 NOOP command successful.");
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
     private void processModifiedTime(String parameter) {
+        checkAuth();
         File f = new File(userCurrent, parameter);
         try {
             if (f.exists()) {
@@ -99,6 +101,7 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processPortExtensionCommand(String parameter) {
+        checkAuth();
         String[] params = parameter.split("\\|");
         if (data != null) {
             data.stop();
@@ -138,6 +141,7 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processNameList(String parameter) {
+        checkAuth();
         File[] files = userCurrent.listFiles();
         StringBuilder sb = new StringBuilder();
         if (files != null) {
@@ -169,6 +173,7 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processDirectoryRemove(String parameter) {
+        checkAuth();
         File f = null;
         if (parameter.charAt(0) == '/')
             f = new File(userRoot, parameter);
@@ -193,6 +198,7 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processDirectoryMake(String parameter) {
+        checkAuth();
         File f = null;
         if (parameter.charAt(0) == '/')
             f = new File(userRoot, parameter);
@@ -217,6 +223,7 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processPortCommand(String parameter) {
+        checkAuth();
         String[] ports = parameter.split(",");
         if (data != null) {
             data.stop();
@@ -261,6 +268,7 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processFileSize(String parameter) {
+        checkAuth();
         File f = null;
         if (parameter.charAt(0) == '/')
             f = new File(userRoot, parameter);
@@ -280,6 +288,7 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processDelete(String parameter) {
+        checkAuth();
         File f = null;
         if (parameter.charAt(0) == '/')
             f = new File(userRoot, parameter);
@@ -304,6 +313,7 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processStore(String parameter) {
+        checkAuth();
         File f = new File(userCurrent, parameter);
 
         try {
@@ -320,6 +330,7 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processFileReset(String parameter) {
+        checkAuth();
         long offset = Long.parseLong(parameter);
         this.restart = offset;
         if (data != null) {
@@ -336,6 +347,7 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processOption(String parameter) {
+        checkAuth();
         try {
             String[] params = parameter.split(" ");
             if (params.length > 1 && params[0].equalsIgnoreCase("UTF8")) {
@@ -378,10 +390,12 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processChangeDirectoryUp(String parameter) {
+        checkAuth();
         processChangeWorkingDirectory("..");
     }
 
     private void processRetrieve(String parameter) {
+        checkAuth();
         File f = null;
         if (parameter.charAt(0) == '/')
             f = new File(userRoot, parameter);
@@ -410,6 +424,7 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processChangeWorkingDirectory(String parameter) {
+        checkAuth();
         File toChange = null;
         if (parameter.length() > 0 && parameter.charAt(0) == '/') {
             toChange = new File(userRoot, parameter.substring(1));
@@ -439,6 +454,7 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processList(String parameter) {
+        checkAuth();
         File[] files = userCurrent.listFiles();
         StringBuilder sb = new StringBuilder();
 
@@ -498,6 +514,7 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processPassive(String parameter) {
+        checkAuth();
         if (data != null) {
             data.stop();
         }
@@ -539,6 +556,7 @@ public class RequestHandler implements DataConnectionListener {
     }
 
     private void processPrintWorkingDirectory(String parameter) {
+        checkAuth();
         try {
             String root = userRoot.getAbsolutePath();
             String curr = userCurrent.getAbsolutePath();
@@ -576,22 +594,43 @@ public class RequestHandler implements DataConnectionListener {
         try {
             if (this.userName == null) {
                 FtpUtil.println(socket, "503 Bad sequence of commands. Send USER first.");
+                return;
             }
 
-            userRoot = new File(this.directory);
+            this.isAuth = new Authentication().isValidUser(this.userName, parameter);
+            if (!isAuth) {
+                FtpUtil.println(socket, "530 Login incorrect.");
+            } else {
+                userRoot = new File(System.getProperty("ftp.home"), userName);
+                String privateRoot = System.getProperty("ftp.home." + userName);
+                if (privateRoot != null)
+                    userRoot = new File(privateRoot);
 
-            if (!userRoot.exists()) {
-                System.out.println("Directory doesn't exist");
-                System.exit(1);
+                if (!userRoot.exists()) {
+                    System.out.println("Directory doesn't exist");
+                    System.exit(1);
 //                userRoot.mkdirs();
-            }
+                }
 
-            userCurrent = userRoot;
-            FtpUtil.println(socket, "230 User " + this.userName + " logged in.");
+                userCurrent = userRoot;
+                FtpUtil.println(socket, "230 User " + this.userName + " logged in.");
+            }
         } catch (IOException e) {
             System.out.println("Error processing password");
             e.printStackTrace();
         }
+    }
+
+    private boolean checkAuth() {
+        if (!isAuth) {
+            try {
+                FtpUtil.println(socket, "530 Not logged in.");
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return false;
+        }
+        return true;
     }
 
     private void processUser(String parameter) {
@@ -608,7 +647,6 @@ public class RequestHandler implements DataConnectionListener {
 
                 userCurrent = userRoot;
                 FtpUtil.println(socket, "230 Anonymous user logged in");
-//                FtpUtil.println(socket, "331 Password should be email address");
                 return;
             }
             this.userName = parameter;
